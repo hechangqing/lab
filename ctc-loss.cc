@@ -3,7 +3,11 @@
 // hcq
 
 #include "ctc/ctc-loss.h"
+#include "ctc/helper.h"
 #include "cudamatrix/cu-math.h"
+#include "base/kaldi-types.h"
+#include "ctc/Log.hpp"
+#include <algorithm> 
 
 namespace kaldi {
 namespace nnet1 {
@@ -24,7 +28,7 @@ void CTCLoss::Eval(const CuMatrixBase<BaseFloat> &log_net_out,
   *diff = diff_host_;
 }
 
-void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
+void CTCLoss::eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
                   const std::vector<int32> &target,
                   Matrix<BaseFloat> *diff)
 {
@@ -46,10 +50,10 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
       " this should have been checked before calling this function";
   }
   total_segments_ = target.size() * 2 + 1;
-
+  
   // calculate the forward variables
-  forward_variables_.Resize(total_time_, total_segments_,
-                            Log<BaseFloat>::logZero);
+  forward_variables_.Resize(total_time_, total_segments_, kUndefined);
+  forward_variables_.Set(Log<BaseFloat>::logZero);
   forward_variables_(0, 0) = log_net_out(0, blank_);
   if (total_segments_ > 1) {
     forward_variables_(0, 1) = log_net_out(0, target[0]);
@@ -87,12 +91,11 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
     log_prob = Log<BaseFloat>::log_add(log_prob, 
                                        last_fvars(last_fvars.Dim() - 2));
   }
-  KALDI_ASSERT(log_prob <= 0 && 
-      "sequence has log probability " + str(log_prob));
+  KALDI_ASSERT(log_prob <= 0);
 
   // calculate the backward variables
-  backward_variables_.Resize(total_time_, total_segments_, 
-      Log<BaseFloat>::logZero);
+  backward_variables_.Resize(total_time_, total_segments_, kUndefined);
+  backward_variables_.Set(Log<BaseFloat>::logZero);
   SubVector<BaseFloat> last_bvars(backward_variables_, total_time_-1);
   last_bvars(last_bvars.Dim() - 1) = Log<BaseFloat>::safe_log(1);
   if (total_segments_ > 1) {
@@ -103,7 +106,7 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
     SubVector<BaseFloat> old_log_acts(log_net_out, t+1);
     SubVector<BaseFloat> old_bvars(backward_variables_, t+1);
     SubVector<BaseFloat> bvars(backward_variables_, t);
-    pair<int, int> this_range = segment_range(t);
+    std::pair<int, int> this_range = segment_range(t);
     for (int s = this_range.first; s != this_range.second; s++) {
       BaseFloat bv;
       // s odd (label output)
@@ -136,7 +139,8 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
   // inject the training errors
   de_dy_terms_.resize(log_net_out.NumCols());
   for (int time = 0; time < total_time_; time++) {
-    fill(de_dy_terms_, Log<BaseFloat>::logZero);
+    std::fill(de_dy_terms_.begin(), de_dy_terms_.end(),
+        Log<BaseFloat>::logZero);
     SubVector<BaseFloat> fvars(forward_variables_, time);
     SubVector<BaseFloat> bvars(backward_variables_, time);
     for (int s = 0; s < total_segments_; s++) {
@@ -146,14 +150,30 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
           Log<BaseFloat>::log_multiply(fvars(s), bvars(s)));
     }
     for (size_t i = 0; i < de_dy_terms_.size(); i++) {
-      diff(time, i) = Log<BaseFloat>::safe_exp(
+      (*diff)(time, i) = Log<BaseFloat>::safe_exp(
           Log<BaseFloat>::log_subtract(log_net_out(time, i),
             Log<BaseFloat>::log_divide(de_dy_terms_[i], log_prob)));
     }
   }
+
+  loss_ += Log<BaseFloat>::safe_exp(log_prob);
 }
 
+std::pair<int, int> CTCLoss::segment_range(int time) const
+{
+  int start = std::max(0, total_segments_ - (2 * (total_time_ - time)));
+  int end = std::min(total_segments_, 2 * (time + 1));
+  end = (start > end ? start : end);
+  KALDI_ASSERT(start <= end);
+  return std::make_pair(start, end);
+}
 
+std::string CTCLoss::Report()
+{
+  std::ostringstream oss;
+  oss << "Total Loss: " << loss_ << std::endl;
+  return oss.str();
+}
 
 } // namespace nnet1
 } // namespace kaldi
