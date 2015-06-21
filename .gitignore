@@ -1,3 +1,6 @@
+# vim buffer files
+*.swp
+
 # Compiled Object files
 *.slo
 *.lo
