@@ -40,6 +40,9 @@ int main(int argc, char *argv[]) {
     std::string feature_transform;
     po.Register("feature-transform", &feature_transform, "Feature transform in Nnet format");
 
+    int32 length_tolerance = 5;
+    po.Register("length-tolerance", &length_tolerance, "Allowed length difference of features/weights (frames)");
+    
     std::string frame_weights;
     po.Register("frame-weights", &frame_weights, "Per-frame weights to scale gradients (frame selection/weighting).");
 

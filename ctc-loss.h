@@ -10,6 +10,7 @@
 #include "cudamatrix/cu-matrix.h"
 #include "cudamatrix/cu-vector.h"
 #include "cudamatrix/cu-array.h"
+#include <utility>
 
 namespace kaldi {
 namespace nnet1 {
@@ -17,7 +18,7 @@ namespace nnet1 {
 class CTCLoss {
 public:
   CTCLoss(int blank_num)
-    : blank_(blank_num), frames_(0), loss_(0.0)
+    : blank_(blank_num), total_time_(0), total_segments_(0), frames_(0), loss_(0.0)
   { }
   ~CTCLoss() { }
 
@@ -34,7 +35,8 @@ private:
   void eval_on_host(const MatrixBase<BaseFloat> &log_net_out_host,
                     const std::vector<int32> &target,
                     Matrix<BaseFloat> *diff_host);
-
+  
+  std::pair<int, int> segment_range(int time) const;
 private:
   int blank_;
  
@@ -46,10 +48,8 @@ private:
   Matrix<BaseFloat> log_net_out_host_;
   Matrix<BaseFloat> diff_host_;
 
-
   int32 frames_;
   double loss_;
-
 };
 
 } // namespace nnet1
