@@ -19,6 +19,7 @@ void CTCLoss::Eval(const CuMatrixBase<BaseFloat> &log_net_out,
   // calculate CTC errors
   eval_on_host(log_net_out_host_, target, &diff_host_);
 
+  diff->Resize(log_net_out.NumRows(), log_net_out.NumCols());
   // -> GPU
   *diff = diff_host_;
 }
@@ -27,7 +28,11 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
                   const std::vector<int32> &target,
                   Matrix<BaseFloat> *diff)
 {
+  KALDI_ASSERT(blank_ >= 0);
+  diff->Resize(log_net_out.NumRows(), log_net_out.NumCols());
+
   total_time_ = log_net_out.NumRows();
+  // check required time > total time
   int required_time = target.size();
   int32 old_label = -1;
   for (size_t i = 0; i != target.size(); i++) {
@@ -55,7 +60,7 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
     SubVector<BaseFloat> fvars(forward_variables_, t);
     std::pair<int, int> this_range = segment_range(t);
     for (int s = this_range.first; s != this_range.second; s++) {
-      BaseFloat fv;
+      BaseFloat fv = Log<BaseFloat>::logZero;
       // s odd (label output)
       if (s & 1) {
         int label_index = s / 2;
@@ -129,20 +134,21 @@ void eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
   } // for (int t)
 
   // inject the training errors
+  de_dy_terms_.resize(log_net_out.NumCols());
   for (int time = 0; time < total_time_; time++) {
-    fill(de_dy_terms, Log<BaseFloat>::logZero);
+    fill(de_dy_terms_, Log<BaseFloat>::logZero);
     SubVector<BaseFloat> fvars(forward_variables_, time);
     SubVector<BaseFloat> bvars(backward_variables_, time);
     for (int s = 0; s < total_segments_; s++) {
       // k = blank_ for even s, target label for odd s
       int k = (s&1) ? target[s/2] : blank_;
-      de_dy_terms[k] = Log<BaseFloat>::log_add(de_dy_terms[k],
+      de_dy_terms_[k] = Log<BaseFloat>::log_add(de_dy_terms_[k],
           Log<BaseFloat>::log_multiply(fvars(s), bvars(s)));
     }
-    for (size_t i = 0; i < de_dy_terms.size(); i++) {
+    for (size_t i = 0; i < de_dy_terms_.size(); i++) {
       diff(time, i) = Log<BaseFloat>::safe_exp(
           Log<BaseFloat>::log_subtract(log_net_out(time, i),
-            Log<BaseFloat>::log_divide(de_dy_terms[i], log_prob)));
+            Log<BaseFloat>::log_divide(de_dy_terms_[i], log_prob)));
     }
   }
 }

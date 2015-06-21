@@ -37,7 +37,16 @@ private:
 
 private:
   int blank_;
-  
+ 
+  int total_time_;
+  int total_segments_;
+  std::vector<BaseFloat> de_dy_terms_;
+  Matrix<BaseFloat> forward_variables_;
+  Matrix<BaseFloat> backward_variables_;
+  Matrix<BaseFloat> log_net_out_host_;
+  Matrix<BaseFloat> diff_host_;
+
+
   int32 frames_;
   double loss_;
 
