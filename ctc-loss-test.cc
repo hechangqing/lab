@@ -56,8 +56,24 @@ int main()
 {
   using namespace kaldi;
   using namespace kaldi::nnet1;
+  
+  for (int loop = 0; loop < 2; loop++) {
+#if HAVE_CUDA == 1
+    if (loop == 0)
+      CuDevice::Instantiate().SelectGpuId("no");
+    else
+      CuDevice::Instantiate().SelectGpuId("yes");
+#endif
 
-  UnitTestCTCLossUnity();
-  KALDI_LOG << "Tests succeeded.";
+    UnitTestCTCLossUnity();
+    
+    if (loop == 0)
+      KALDI_LOG << "Tests without GPU use succeeded.";
+    else
+      KALDI_LOG << "Tests with GPU use (if available) succeeded.";
+  }
+#if HAVE_CUDA == 1
+  CuDevice::Instantiate().PrintProfile();
+#endif
   return 0;
 }
