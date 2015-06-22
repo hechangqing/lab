@@ -148,11 +148,16 @@ void CTCLoss::eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
       int k = (s&1) ? target[s/2] : blank_;
       de_dy_terms_[k] = Log<BaseFloat>::log_add(de_dy_terms_[k],
           Log<BaseFloat>::log_multiply(fvars(s), bvars(s)));
+      //std::cout << "dedy" << k << " " << Log<BaseFloat>::safe_exp(de_dy_terms_[k]) << std::endl;
     }
     for (size_t i = 0; i < de_dy_terms_.size(); i++) {
-      (*diff)(time, i) = Log<BaseFloat>::safe_exp(
-          Log<BaseFloat>::log_subtract(log_net_out(time, i),
-            Log<BaseFloat>::log_divide(de_dy_terms_[i], log_prob)));
+      (*diff)(time, i) = 
+          Log<BaseFloat>::safe_exp(log_net_out(time, i)) -
+          Log<BaseFloat>::safe_exp(
+              Log<BaseFloat>::log_divide(de_dy_terms_[i], log_prob));
+      //std::cout << "net_out " << Log<BaseFloat>::safe_exp(log_net_out(time, i)) << " ";
+      //std::cout << "dedy/logprob " << Log<BaseFloat>::safe_exp(Log<BaseFloat>::log_divide(de_dy_terms_[i], log_prob)) << " ";
+      //std::cout << "diff" << time << i << " " << (*diff)(time, i) << std::endl;
     }
   }
 

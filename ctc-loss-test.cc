@@ -27,16 +27,27 @@ namespace nnet1 {
                               0.1 0.1 0.7 0.1;\
                               0.1 0.1 0.1 0.7 ] ", &nnet_out);
     nnet_out.ApplyLog();
-
+    // prepare target labels
     int tgts[] = { 1, 2, 3 };
     std::vector<int> targets(tgts, tgts + sizeof(tgts)/sizeof(tgts[0]));
-
+    // store ctc errors
     CuMatrix<BaseFloat> obj_diff;
 
-    CTCLoss ctc(0);
+    // calculate ctc errors
+    CTCLoss ctc(0);  // 0 for blank
     ctc.Eval(nnet_out, targets, &obj_diff);
-    
-    std::cout << ctc.Report();
+    // prepare thruth errors
+    CuMatrix<BaseFloat> obj_diff_truth;
+    ReadCuMatrixFromString("[ 0.1 -0.3 0.1 0.1;\
+                              0.1 0.1 -0.3 0.1;\
+                              0.1 0.1 0.1 -0.3 ] ", &obj_diff_truth);
+  
+    KALDI_LOG << "log forward variables:\n" << ctc.forward_variables_;
+    KALDI_LOG << "log backward variables:\n" << ctc.backward_variables_;
+    KALDI_LOG << "calculate  errors:\n" << obj_diff << std::endl;    
+    KALDI_LOG << "truth      errors:\n" << obj_diff_truth << std::endl;    
+    KALDI_LOG << ctc.Report();
+    AssertEqual(obj_diff, obj_diff_truth);
   }
 } // namespace nnet1
 } // namespace kaldi
@@ -47,5 +58,6 @@ int main()
   using namespace kaldi::nnet1;
 
   UnitTestCTCLossUnity();
+  KALDI_LOG << "Tests succeeded.";
   return 0;
 }

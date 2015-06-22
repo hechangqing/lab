@@ -30,14 +30,14 @@ public:
   /// Generate string with error report
   std::string Report();
 
-private:
+public:
   /// Evaluate CTC errors on host matrix 
   void eval_on_host(const MatrixBase<BaseFloat> &log_net_out_host,
                     const std::vector<int32> &target,
                     Matrix<BaseFloat> *diff_host);
   
   std::pair<int, int> segment_range(int time) const;
-private:
+public:
   int blank_;
  
   int total_time_;
