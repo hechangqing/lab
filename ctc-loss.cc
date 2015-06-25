@@ -177,6 +177,7 @@ std::string CTCLoss::Report()
 {
   std::ostringstream oss;
   oss << "Total Loss: " << loss_ << std::endl;
+  oss << "LogP(z|x): " << Log<BaseFloat>::safe_log(loss_) << std::endl;
   return oss.str();
 }
 
