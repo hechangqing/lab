@@ -31,6 +31,9 @@ int main(int argc, char *argv[]) {
 
     int blank_num = -1;
     po.Register("blank-num", &blank_num, "The number that stands for blank in network. >= 0");
+    
+    int report_step = 100;
+    po.Register("report-step", &report_step, "The steps that print report");
 
     bool binary = true, 
          crossvalidate = false;
@@ -193,7 +196,9 @@ int main(int argc, char *argv[]) {
 
       // evaluate objective function
       ctc_loss.Eval(nnet_out, targets, &obj_diff);
-
+      double err = 0.0;
+      std::vector<int32> hyp;
+      ctc_loss.ErrorRate(nnet_out, targets, &err, &hyp);
       // backward pass
       if (!crossvalidate) {
         // re-scale the gradients

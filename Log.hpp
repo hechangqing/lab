@@ -212,7 +212,7 @@ template<class T> std::istream& operator >>(std::istream& in, Log<T>& l)
 template <class T> const T Log<T>::expMax = std::numeric_limits<T>::max();
 template <class T> const T Log<T>::expMin = std::numeric_limits<T>::min();
 template <class T> const T Log<T>::expLimit = std::log(expMax);
-template <class T> const T Log<T>::logInfinity = 1e100;
+template <class T> const T Log<T>::logInfinity = std::numeric_limits<T>::max() - 10;
 template <class T> const T Log<T>::logZero = -Log<T>::logInfinity;
 
 } // namespace nnet1

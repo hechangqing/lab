@@ -4,6 +4,7 @@
 
 #include "ctc/ctc-loss.h"
 #include "ctc/helper.h"
+#include "util/edit-distance.h"
 #include "cudamatrix/cu-math.h"
 #include "base/kaldi-types.h"
 #include "ctc/Log.hpp"
@@ -37,18 +38,21 @@ void CTCLoss::eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
 
   total_time_ = log_net_out.NumRows();
   // check required time > total time
-  int required_time = target.size();
-  int32 old_label = -1;
-  for (size_t i = 0; i != target.size(); i++) {
-    if (old_label == target[i]) {
-      required_time++;
+  {
+    int required_time = target.size();
+    int32 old_label = -1;
+    for (size_t i = 0; i != target.size(); i++) {
+      if (old_label == target[i]) {
+        required_time++;
+      }
+      old_label = target[i];
     }
-    old_label = target[i];
+    if (total_time_ < required_time) {
+      KALDI_ERR << "required time > total time; this should not happen because"
+        " this should have been checked before calling this function";
+    }
   }
-  if (total_time_ < required_time) {
-    KALDI_ERR << "required time > total time; this should not happen because"
-      " this should have been checked before calling this function";
-  }
+  
   total_segments_ = target.size() * 2 + 1;
   
   // calculate the forward variables
@@ -91,6 +95,8 @@ void CTCLoss::eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
     log_prob = Log<BaseFloat>::log_add(log_prob, 
                                        last_fvars(last_fvars.Dim() - 2));
   }
+  
+  // std::cout << "log prob " << log_prob << std::endl;
   KALDI_ASSERT(log_prob <= 0);
 
   // calculate the backward variables
@@ -161,7 +167,29 @@ void CTCLoss::eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
     }
   }
 
-  loss_ += Log<BaseFloat>::safe_exp(log_prob);
+  // record progress
+  obj_progress_ += log_prob;
+  sequences_progress_ += 1;
+  sequences_num_ += 1;
+  frames_progress_ += total_time_;
+  frames_ += total_time_;
+
+  // progress reporting
+  {
+    if (sequences_progress_ > report_step_) {
+      KALDI_VLOG(1) << "After " << sequences_num_ << " sequences ("
+                    << frames_/(100.0 * 3600) << "Hr): "
+                    << "Obj(log[P(z|x)]) = " << obj_progress_/sequences_progress_
+                    << "   TokenAcc = "
+                    << 100.0*(1.0-error_num_progress_/ref_num_progress_)
+                    << "%";
+      sequences_progress_ = 0;
+      frames_progress_ = 0;
+      obj_progress_ = 0;
+      error_num_progress_ = 0;
+      ref_num_progress_ = 0;
+    }
+  }
 }
 
 std::pair<int, int> CTCLoss::segment_range(int time) const
@@ -171,13 +199,49 @@ std::pair<int, int> CTCLoss::segment_range(int time) const
   end = (start > end ? start : end);
   KALDI_ASSERT(start <= end);
   return std::make_pair(start, end);
+  //return std::make_pair(0, total_segments_);
+}
+
+void CTCLoss::ErrorRate(const CuMatrixBase<BaseFloat> &net_out,
+               const std::vector<int32> &label,
+               double *error_rate,
+               std::vector<int32> *hyp)
+{
+  CuArray<int32> maxid(net_out.NumRows());
+  net_out.FindRowMaxId(&maxid);
+
+  std::vector<int32> maxid_host(net_out.NumRows());
+  maxid.CopyToVec(&maxid_host);
+
+  // remove repetitions and blanks
+  int32 i = 1, j = 1;
+  int32 dim = maxid_host.size();
+  for (; j < dim; j++) {
+    if (maxid_host[j] != maxid_host[j-1]) {
+      maxid_host[i++] = maxid_host[j];
+    }
+  }
+  hyp->resize(0);
+  for (int32 n = 0; n < i; n++) {
+    if (maxid_host[n] != blank_) {
+      hyp->push_back(maxid_host[n]);
+    }
+  }
+  
+  int32 err, ins, del, sub;
+  err = LevenshteinEditDistance(label, *hyp, &ins, &del, &sub);
+  *error_rate = (100.0 * err) / label.size();
+  error_num_ += err;
+  ref_num_ += label.size();
+  error_num_progress_ += err;
+  ref_num_progress_ += label.size();
 }
 
 std::string CTCLoss::Report()
 {
   std::ostringstream oss;
-  oss << "Total Loss: " << loss_ << std::endl;
-  oss << "LogP(z|x): " << Log<BaseFloat>::safe_log(loss_) << std::endl;
+  oss << "\nTOKEN_ACCURACY >> " << 100.0 * (1.0 - error_num_ / ref_num_)
+      << "% <<";
   return oss.str();
 }
 
