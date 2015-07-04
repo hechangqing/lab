@@ -9,8 +9,8 @@ else
   train_tool=ctc-train-perutt
 fi
 
-start_epoch_num=52
-max_iters=120
+start_epoch_num=1
+max_iters=95
 
 learn_rate=0.0001
 momentum=0.9
@@ -29,6 +29,7 @@ echo "$0 $@"
 if [ $# != 3 ]; then
   echo "Usage: $0 <data-tr> <data-cv> <exp-dir>"
   echo " e.g.: $0 data/train data/dev exp/train_phn"
+  exit 1
 fi
 
 data_tr=$1
