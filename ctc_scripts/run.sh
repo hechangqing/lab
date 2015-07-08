@@ -16,7 +16,7 @@
 [ -f path.sh ] && . ./path.sh
 set -e
 
-stage=5
+stage=7
 
 echo ============================================================================
 echo "                Data & Lexicon & Language Preparation                     "
@@ -155,5 +155,36 @@ echo "BEST MODEL $best_net LER: $best_ler%  TOKEN_ACC: $best_acc%"
 echo ============================================================================
 echo "                      CTC Testing (End-to-End Recognition)                "
 echo ============================================================================
+if [ $stage -le 5 ]; then 
+  # prepare decoding fst TLG.fst in data-ctc/lang_test_bg
+  ctc_scripts/timit_compile_dict_token.sh $dir data/train
+
+  # Compute the occurrence counts of labels in the label sequences. These counts will be used to derive prior probabilities of
+  # the labels.
+  copy-int-vector ark:$dir/targets.tr.ark ark,t:- | awk '{line=$0; gsub(" ", " 0 ", line); print line " 0";}' | \
+  analyze-counts --verbose=1 --binary=false ark:- $dir/label.counts >& $dir/log/compute_label_counts.log || exit 1
+fi 
+
+decode_dir=$dir/decode-test
+mkdir -p $decode_dir $decode_dir/log
+
+if [ $stage -le 6 ]; then
+    # setup feature
+    norm_vars=true
+    cat data/test/feats.scp > $dir/test.scp
+    feats_test="ark,s,cs:apply-cmvn --norm-vars=$norm_vars --utt2spk=ark:data/test/utt2spk scp:data/test/cmvn.scp scp:$dir/test.scp ark:- |"
+    feats_test="$feats_test add-deltas --delta-order=2 ark:- ark:- |"
+    # end of feature setup
+    nnet-forward --class-frame-counts=$dir/label.counts --apply-log=true --no-softmax=false $dir/nnet/$best_net "$feats_test" ark:- | \
+    ctc-decode-faster --beam=15 --max-active=7000 --acoustic-scale=0.9 --word-symbol-table=data-ctc/lang_test_bg/words.txt \
+    --allow-partial=true data-ctc/lang_test_bg/TLG.fst ark:- ark,t:$decode_dir/trans >& $decode_dir/log/decode.log
+
+fi
+
+ cat data/test/text.39 > $decode_dir/text
+
+ cat $decode_dir/trans | utils/int2sym.pl -f 2- data-ctc/lang_test_bg/words.txt | \
+   compute-wer --text --mode=present ark:$decode_dir/text ark,p:-
+
 
 exit 0;
