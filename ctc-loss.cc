@@ -176,7 +176,7 @@ void CTCLoss::eval_on_host(const MatrixBase<BaseFloat> &log_net_out,
 
   // progress reporting
   {
-    if (sequences_progress_ > report_step_) {
+    if (sequences_progress_ >= report_step_) {
       KALDI_VLOG(1) << "After " << sequences_num_ << " sequences ("
                     << frames_/(100.0 * 3600) << "Hr): "
                     << "Obj(log[P(z|x)]) = " << obj_progress_/sequences_progress_

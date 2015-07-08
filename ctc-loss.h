@@ -22,7 +22,7 @@ public:
       frames_(0), sequences_num_(0), ref_num_(0), error_num_(0.0), frames_progress_(0),
       sequences_progress_(0), ref_num_progress_(0), error_num_progress_(0.0),
       obj_progress_(0.0), report_step_(report_step)
-  { }
+  { KALDI_ASSERT(report_step > 0); }
   ~CTCLoss() { }
 
   /// Evaluate connectionist temporal classification (CTC) errors from labels
